@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MindTheGap — Live Crowd Heatmap</title>
+  <meta name="theme-color" content="#0b0f14"/>
+
+  <!-- ====== Minimal Tailwind-esque styling (vanilla) ====== -->
+  <style>
+    :root{
+      --bg:#0b0f14; --card:#111826; --muted:#94a3b8; --text:#e5e7eb; --accent:#58c4ff; --accent2:#7c3aed;
+      --btn:#171f2e; --btnb:#2b3342; --shadow:0 10px 30px rgba(0,0,0,.25);
+    }
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,#0b0f14,#0a0d12);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    .wrap{display:grid;grid-template-rows:auto 1fr;min-height:100vh}
+    header{
+      position:sticky;top:0;z-index:20;backdrop-filter:blur(10px);
+      background:linear-gradient(180deg,rgba(17,24,38,.85),rgba(17,24,38,.55));
+      border-bottom:1px solid rgba(88,196,255,.15);
+    }
+    .bar{max-width:1100px;margin:0 auto;padding:14px 16px;display:flex;gap:10px;align-items:center}
+    .logo{display:flex;gap:10px;align-items:center;font-weight:700}
+    .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(45deg,var(--accent),var(--accent2))}
+    .title{letter-spacing:.3px}
+    .grow{flex:1}
+    .card{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid rgba(88,196,255,.12);border-radius:16px;padding:8px 10px;box-shadow:var(--shadow)}
+    input[type="text"]{
+      flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:14px;padding:8px 10px;
+    }
+    .btn{
+      display:inline-flex;align-items:center;gap:8px;border-radius:12px;padding:10px 14px;background:var(--btn);
+      border:1px solid var(--btnb);color:var(--text);cursor:pointer;transition:.15s transform, .15s box-shadow;
+    }
+    .btn:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.3)}
+    .btn.accent{background:linear-gradient(135deg,rgba(88,196,255,.12),rgba(124,58,237,.12));border-color:rgba(88,196,255,.35)}
+    .btn.small{padding:8px 10px;font-size:12px}
+    .pill{
+      font-size:12px;padding:6px 10px;border-radius:999px;background:rgba(88,196,255,.12);border:1px solid rgba(88,196,255,.2);color:#cbeaff
+    }
+    .map{position:relative}
+    #map{width:100%;height:calc(100vh - 74px)}
+    .floating{
+      position:absolute;right:16px;bottom:16px;display:flex;flex-direction:column;gap:10px;z-index:15
+    }
+    .toast{
+      position:absolute;left:50%;transform:translateX(-50%);bottom:16px;background:#0f172a;border:1px solid rgba(124,58,237,.35);
+      color:#e9ddff;padding:10px 12px;border-radius:10px;font-size:12px;box-shadow:var(--shadow);display:none
+    }
+    .legend{
+      position:absolute;left:16px;bottom:16px;background:#0f172a;border:1px solid rgba(88,196,255,.18);border-radius:12px;padding:10px 12px;
+      color:#cbd5e1;font-size:12px;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow)
+    }
+    .grad{width:120px;height:10px;background:linear-gradient(90deg,rgba(88,196,255,.2),#58c4ff,#7c3aed,#ef4444);border-radius:999px}
+    .dim{color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="bar">
+        <div class="logo"><span class="dot"></span><span class="title">MindTheGap</span><span class="pill">live</span></div>
+        <div class="grow card">
+          <input id="search" type="text" placeholder="Search a place — e.g., Katraj Zoo" />
+          <button id="useLocation" class="btn accent" title="Share my live presence">📍 Use my location</button>
+        </div>
+        <button id="recenter" class="btn small" title="Recenter to last result">⤴ Recenter</button>
+        <button id="toggleHeat" class="btn small" title="Toggle heatmap">🔥 Heat</button>
+      </div>
+    </header>
+
+    <div class="map">
+      <div id="map"></div>
+      <div class="legend"><div class="grad"></div><span class="dim">few</span><span>→</span><span>dense</span></div>
+      <div id="toast" class="toast"></div>
+      <div class="floating">
+        <button id="zoomIn" class="btn small">＋</button>
+        <button id="zoomOut" class="btn small">－</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= Firebase ================= -->
+  <script type="module">
+    // --- Firebase modular v10 ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+    import {
+      getFirestore, collection, query, where, onSnapshot, getDocs, setDoc, doc, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+
+    // === your Firebase config ===
+    const firebaseConfig = {
+      apiKey: "AIzaSyCxwBxP1T0yB4RkcRixTK4Ud_653BmRBMs",
+      authDomain: "mindthegap-1d0fd.firebaseapp.com",
+      projectId: "mindthegap-1d0fd",
+      storageBucket: "mindthegap-1d0fd.firebasestorage.app",
+      messagingSenderId: "56543977861",
+      appId: "1:56543977861:web:7665c6eed29abacc7624ec",
+      measurementId: "G-N2Y0BWKVEV"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+
+    // ====== Google Maps bits (loaded later) ======
+    let map, heatmap, placesService, autocomplete;
+    let lastCenter = { lat: 18.516726, lng: 73.856255 }; // Default Pune
+    let lastZoom = 12;
+    let heatVisible = true;
+    let unsubscribe = null;
+    let currentPingDocId = localStorage.getItem("mtg_device_id") || crypto.randomUUID();
+    localStorage.setItem("mtg_device_id", currentPingDocId);
+
+    // toast helper
+    const toastEl = document.getElementById('toast');
+    function toast(msg, ms=2200){ toastEl.textContent = msg; toastEl.style.display='block'; setTimeout(()=>toastEl.style.display='none', ms); }
+
+    // init flow once Google Maps script is ready
+    window.__initMap = function(){
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: lastCenter,
+        zoom: lastZoom,
+        mapId: "DEMO_MAP_ID", // optional styling mapId; fine to leave as is
+        disableDefaultUI: true,
+        gestureHandling: "greedy",
+        styles: [
+          { elementType: "geometry", stylers: [{ color: "#0b0f14" }] },
+          { elementType: "labels.text.stroke", stylers: [{ color: "#0b0f14" }] },
+          { elementType: "labels.text.fill", stylers: [{ color: "#94a3b8" }] },
+          { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#0f172a" }] },
+          { featureType: "road", elementType: "geometry", stylers: [{ color: "#111826" }] },
+          { featureType: "water", elementType: "geometry", stylers: [{ color: "#0a2030" }] }
+        ]
+      });
+
+      // heatmap layer
+      heatmap = new google.maps.visualization.HeatmapLayer({
+        data: [],
+        map,
+        dissipating: true,
+        radius: 35
+      });
+
+      placesService = new google.maps.places.PlacesService(map);
+
+      // Autocomplete search
+      const input = document.getElementById("search");
+      autocomplete = new google.maps.places.Autocomplete(input, {
+        fields: ["geometry", "name"]
+      });
+      autocomplete.addListener("place_changed", ()=>{
+        const place = autocomplete.getPlace();
+        if (!place.geometry || !place.geometry.location) { toast("No geometry for that place."); return; }
+        const loc = place.geometry.location;
+        lastCenter = { lat: loc.lat(), lng: loc.lng() };
+        lastZoom = 15;
+        map.panTo(lastCenter); map.setZoom(lastZoom);
+        toast(`Centered on ${place.name}`);
+        // refresh points for the new area (listener already uses time window; we keep global, no bbox filter)
+      });
+
+      // buttons
+      document.getElementById("useLocation").addEventListener("click", shareMyLocationOnce);
+      document.getElementById("recenter").addEventListener("click", ()=>{
+        map.panTo(lastCenter); map.setZoom(lastZoom);
+      });
+      document.getElementById("toggleHeat").addEventListener("click", ()=>{
+        heatVisible = !heatVisible; heatmap.setMap(heatVisible ? map : null);
+      });
+      document.getElementById("zoomIn").addEventListener("click", ()=> map.setZoom(map.getZoom()+1));
+      document.getElementById("zoomOut").addEventListener("click", ()=> map.setZoom(map.getZoom()-1));
+
+      // start live data subscription
+      startLiveHeatmap();
+      // periodic refresh every 60s (keeps radius/weight fresh if needed)
+      setInterval(startLiveHeatmap, 60000);
+    };
+
+    // subscribe to Firestore `pings` newer than 5 minutes
+    function startLiveHeatmap(){
+      const fiveMinAgo = new Date(Date.now() - 5*60*1000);
+      const q = query(collection(db, "pings"), where("timestamp", ">=", fiveMinAgo));
+
+      if (unsubscribe) unsubscribe(); // drop prev listener
+      unsubscribe = onSnapshot(q, (snap)=>{
+        const points = [];
+        snap.forEach(doc=>{
+          const d = doc.data();
+          if (typeof d.lat === "number" && typeof d.lng === "number"){
+            points.push(new google.maps.LatLng(d.lat, d.lng));
+          }
+        });
+        heatmap.setData(points);
+        // optional dynamic radius based on zoom
+        const z = map.getZoom();
+        heatmap.set("radius", Math.max(20, Math.min(60, Math.floor(2.5 * z))));
+      }, (err)=> {
+        console.error(err);
+        toast("Failed to read live data");
+      });
+    }
+
+    // share my current location (one-shot + write ping)
+    async function shareMyLocationOnce(){
+      if (!navigator.geolocation){ toast("Geolocation not supported"); return; }
+      navigator.geolocation.getCurrentPosition(async (pos)=>{
+        const { latitude, longitude } = pos.coords;
+        lastCenter = { lat: latitude, lng: longitude };
+        lastZoom = 16;
+        map.panTo(lastCenter); map.setZoom(lastZoom);
+
+        // write/update this device’s ping (docId stable in localStorage)
+        try{
+          await setDoc(doc(db, "pings", currentPingDocId), {
+            lat: latitude,
+            lng: longitude,
+            timestamp: serverTimestamp(),
+            source: "web"
+          });
+          toast("You're helping the map. Thanks! 🔥");
+        }catch(e){
+          console.error(e); toast("Could not share location.");
+        }
+      }, (err)=>{
+        console.warn(err);
+        if (err.code === err.PERMISSION_DENIED) toast("Enable location access to share your presence.");
+        else toast("Failed to fetch location.");
+      }, { enableHighAccuracy:true, timeout:10000, maximumAge:0 });
+    }
+  </script>
+
+  <!-- ================= Google Maps JS (with places+visualization) ================= -->
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDRZVegHm-p6i_OjCBGoTWvECPWwNniQKM&libraries=places,visualization&callback=__initMap"
+    async defer></script>
+</body>
+</html>
