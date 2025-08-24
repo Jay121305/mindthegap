@@ -41,7 +41,7 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCxwBxP1T0yB4RkcRixTK4Ud_653BmRBMs',
+    apiKey: 'API_KEY',
     appId: '1:56543977861:web:4ae96bedff60adb87624ec',
     messagingSenderId: '56543977861',
     projectId: 'mindthegap-1d0fd',
