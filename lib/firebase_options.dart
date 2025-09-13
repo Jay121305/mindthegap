@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDV7dYzlr582Gc6ZhKU4oQOzQDNYafddTA',
+    apiKey: 'API_KEY',
     appId: '1:56543977861:android:94e7c0a4d039744b7624ec',
     messagingSenderId: '56543977861',
     projectId: 'mindthegap-1d0fd',
@@ -59,7 +59,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCDaToFFR2_3iZ8cRwQPLy89uJo2RYnazc',
+    apiKey: 'API_KEY',
     appId: '1:56543977861:ios:c439d53237f5fe847624ec',
     messagingSenderId: '56543977861',
     projectId: 'mindthegap-1d0fd',
@@ -68,7 +68,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyCDaToFFR2_3iZ8cRwQPLy89uJo2RYnazc',
+    apiKey: 'API_KEY',
     appId: '1:56543977861:ios:c439d53237f5fe847624ec',
     messagingSenderId: '56543977861',
     projectId: 'mindthegap-1d0fd',
@@ -77,7 +77,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyCxwBxP1T0yB4RkcRixTK4Ud_653BmRBMs',
+    apiKey: 'API_KEY',
     appId: '1:56543977861:web:4ae96bedff60adb87624ec',
     messagingSenderId: '56543977861',
     projectId: 'mindthegap-1d0fd',
